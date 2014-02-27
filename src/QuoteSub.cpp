@@ -7,9 +7,22 @@
 //============================================================================
 
 #include <iostream>
-using namespace std;
+
+#include "ZeroMQWrapper.h"
+
 
 int main() {
-	cout << "!!!Hello World!!!" << endl; // prints !!!Hello World!!!
+
+	ZeroMQWrapper mq;
+
+	mq.init();
+
+	while(true)
+	{
+		mq.sub();
+	}
+
+	mq.cleanup();
+
 	return 0;
 }

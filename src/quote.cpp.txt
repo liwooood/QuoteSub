@@ -1,0 +1,164 @@
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <iostream>
+#include <string>
+#include <boost/foreach.hpp>
+#include <boost/typeof/typeof.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/global_fun.hpp>
+#include <boost/multi_index/mem_fun.hpp>
+#include <boost/multi_index/global_fun.hpp>
+#include <boost/multi_index/key_extractors.hpp>
+#include <boost/optional.hpp>
+#include <boost/tuple/tuple.hpp>
+#include <vector>
+
+
+using namespace boost::multi_index;
+
+struct quote
+{
+public:
+	int market;
+	int kind;
+	std::string seccode;
+	std::string secname;
+	float price;
+	float zf;
+
+	quote(int market_, int kind_, std::string seccode_, std::string secname_, float price_, float zf_):
+		market(market_),kind(kind_), seccode(seccode_), secname(secname_), price(price_), zf(zf_)
+	{}
+};
+
+
+
+typedef boost::multi_index::composite_key<quote, 
+	BOOST_MULTI_INDEX_MEMBER(quote, int, market),
+	BOOST_MULTI_INDEX_MEMBER(quote, std::string, seccode)
+>comp_key_search;
+typedef boost::multi_index::composite_key_compare<
+	std::greater<int>,
+	std::greater<std::string>
+>comp_key_compare_search;
+
+
+typedef boost::multi_index::composite_key<quote, 
+	BOOST_MULTI_INDEX_MEMBER(quote, float, price),
+	BOOST_MULTI_INDEX_MEMBER(quote, int, market),
+	BOOST_MULTI_INDEX_MEMBER(quote, std::string, seccode)
+>comp_key_sortbyprice;
+typedef boost::multi_index::composite_key_compare<
+	std::greater<float>,
+	std::greater<int>,
+	std::greater<std::string>
+>comp_key_compare_sortbyprice;
+
+
+
+
+typedef boost::multi_index::multi_index_container<
+	quote,
+	boost::multi_index::indexed_by<
+		boost::multi_index::ordered_non_unique<comp_key_search, comp_key_compare_search>,
+		boost::multi_index::ordered_non_unique<comp_key_sortbyprice, comp_key_compare_sortbyprice>
+	>
+>quote_mic;
+
+
+struct modify_quote
+{
+	float price;
+	float zf;
+
+	modify_quote(float price_, float zf_):
+		price(price_), zf(zf_)
+	{
+	}
+
+	void operator() (quote& q)
+	{
+		q.price = price;
+		q.zf = zf;
+	}
+};
+
+
+int main()
+{
+
+
+	quote_mic quotes;
+
+	// market 代表市场	0深交所 1上交所
+	// type 证券类别 1代表a股 2代表创业板
+
+	quotes.insert(quote(1, 1, "600003", "中国软件", 13.05f, 0.65f));
+	quotes.insert(quote(1, 1, "600000", "浦发银行", 4.6f, 0.3f));
+	quotes.insert(quote(0, 1, "000001", "深发展A", 12.00f, 0.7f));
+	quotes.insert(quote(1, 1, "600002", "中软万维", 45.05f, 0.9f));
+	quotes.insert(quote(0, 2, "300001", "创业板", 45.05f, 0.9f));
+
+	quote_mic::nth_index<0>::type& idx_search = quotes.get<0>();
+	quote_mic::nth_index<1>::type& idx_sortbyprice = quotes.get<1>();
+	
+
+	int count = 0;
+
+
+	// 查询单只股票
+	count = idx_search.count(boost::tuples::make_tuple(1, "600000"));
+	quote_mic::nth_index<0>::type::iterator it = idx_search.find(boost::tuples::make_tuple(1, "600000"));
+	for (int i=0; i<count; i++)
+	{
+		std::cout << it->seccode << std::endl;
+		it++;
+	}
+
+	
+
+	std::cout << "沪深A股最新价升序\n";
+	BOOST_FOREACH(const quote& q, idx_sortbyprice)
+	{
+		int kind = q.kind;
+		if (kind == 1 || kind == 11)
+		{
+			std::cout << "市场" << q.market << ",类别" << q.kind << ", " << q.secname << ",最新价" << q.price << std::endl;
+
+			
+		}
+		else
+		{
+			//有没有更好的办法？？？
+			std::cout << "过滤：市场" << q.market << ",类别" << q.kind << ", " << q.secname << ",最新价" << q.price << std::endl;
+		}
+	}
+
+	
+
+	BOOST_AUTO(pos, idx_search.find(boost::tuples::make_tuple(1, "600000")));
+	idx_search.modify(pos, modify_quote(60.0f, 0.10f));
+
+	std::vector<quote> result;
+
+	std::cout << "沪深A股最新价升序\n";
+	BOOST_FOREACH(const quote& q, idx_sortbyprice)
+	{
+		int kind = q.kind;
+		if (kind == 1 || kind == 11)
+		{
+			std::cout << "市场" << q.market << ",类别" << q.kind << ", " << q.secname << ",最新价" << q.price << std::endl;
+
+			result.push_back(q);
+		}
+		else
+		{
+			//有没有更好的办法？？？
+			std::cout << "过滤：市场" << q.market << ",类别" << q.kind << ", " << q.secname << ",最新价" << q.price << std::endl;
+		}
+	}
+	std::cout << "结果大小" << result.size() << std::endl;
+
+	return 0;
+}
